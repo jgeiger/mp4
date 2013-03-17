@@ -5,21 +5,27 @@ import (
 	"io"
 	"fmt"
 	"bytes"
+	"strings"
 	"github.com/go-av/av"
 )
+
+func (m *mp4) log(format string, v... interface{}) {
+	l.Printf("parse:%s %s",
+			strings.Repeat(" ", m.logindent), fmt.Sprintf(format, v...))
+}
 
 func (m *mp4) readFTYP(r io.Reader) {
 	s, _ := ReadString(r, 4)
 	ver, _ := ReadInt(r, 4)
 	bs := ReadAll(r)
-	l.Printf("%v %v %v\n", s, ver, bs)
+	m.log("%v %v %v", s, ver, bs)
 }
 
 func (m *mp4) readAVC1(r io.ReadSeeker, indent int, trk *mp4trk) {
 	ReadInt(r, 16)
 	w, _ := ReadInt(r, 2)
 	h, _ := ReadInt(r, 2)
-	l.Printf("- video %dx%d", w, h)
+	l.Printf("parse: - video %dx%d", w, h)
 	m.W = w
 	m.H = h
 	ReadInt(r, 14)
@@ -30,7 +36,7 @@ func (m *mp4) readAVC1(r io.ReadSeeker, indent int, trk *mp4trk) {
 	if depth <= 8 {
 		panic("unsupported depth < 8")
 	}
-	l.Printf("- depth,tid %v %v\n", depth, tid)
+	m.log("- depth,tid %v %v", depth, tid)
 	m.readAtom(r, indent, trk)
 }
 
@@ -46,7 +52,7 @@ func (m *mp4) readMP4A(r io.ReadSeeker, indent int, trk *mp4trk) {
 	ReadInt(r, 4) // cid, packsize
 	sr, _ := ReadUint(r, 4) // sample rate
 	sr >>= 16
-	l.Printf("- ver %v channels %d samplerate %d\n", ver, cr, sr)
+	m.log("- ver %v channels %d samplerate %d", ver, cr, sr)
 	m.readAtom(r, indent, trk)
 }
 
@@ -62,7 +68,7 @@ func readDescrLen(r io.Reader) (ln int) {
 			break
 		}
 	}
-	l.Printf("descln %x %x %x %x", s[0], s[1], s[2], s[3])
+	//m.log("descln %x %x %x %x", s[0], s[1], s[2], s[3])
 	return
 }
 
@@ -75,7 +81,7 @@ func readDescr(r io.Reader) (tag, ln int) {
 func (m *mp4) readESDS(r io.ReadSeeker, trk *mp4trk) {
 	ReadInt(r, 4) // version+flags
 	tag, ln1 := readDescr(r)
-	l.Printf("- tag %v %d\n", tag, ln1)
+	m.log("- tag %v %d", tag, ln1)
 	if tag == 0x03 {
 		ReadInt(r, 2)
 		flags, _ := ReadInt(r, 1)
@@ -99,21 +105,21 @@ func (m *mp4) readESDS(r io.ReadSeeker, trk *mp4trk) {
 		ReadInt(r, 3) // buffer size db
 		rmin, _ := ReadInt(r, 4) // max bitrate
 		rmax, _ := ReadInt(r, 4) // min bitrate
-		l.Printf("objid %x streamtype %x bitrate %d %d",
+		m.log("objid %x streamtype %x bitrate %d %d",
 				objid, streamtype, rmin, rmax)
 		tag2, ln := readDescr(r)
 		if tag2 == 0x05 {
 			trk.extra, _ = ReadBuf(r, ln)
-			l.Printf(" extra %v\n", ln)
+			m.log("extra %v", ln)
 		}
 	}
-	l.Printf("- tag %v\n", tag)
+	m.log("- tag %v", tag)
 }
 
 func (m *mp4) readSTSD(r io.Reader, indent int, trk *mp4trk) {
 	ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- entries %d\n", cnt)
+	m.log("- entries %d", cnt)
 	for i := 0; i < cnt; i++ {
 		sz, _ := ReadInt(r, 4)
 		cc4, _ := ReadBuf(r, 4)
@@ -123,7 +129,7 @@ func (m *mp4) readSTSD(r io.Reader, indent int, trk *mp4trk) {
 		}
 		b, _ := ReadBuf(r, sz - 8)
 		trk.cc4 = string(cc4)
-		l.Printf("- %s\n", string(cc4))
+		m.log("- %s", string(cc4))
 		buf := bytes.NewReader(b)
 		switch trk.cc4 {
 		case "avc1":
@@ -139,7 +145,7 @@ func (m *mp4) readSTSD(r io.Reader, indent int, trk *mp4trk) {
 func (m *mp4) readSTTS(r io.Reader, trk *mp4trk) {
 	ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- cnt %d\n", cnt)
+	m.log("- cnt %d", cnt)
 	trk.stts = make([]mp4stts, cnt)
 	for i := 0; i < cnt; i++ {
 		trk.stts[i].cnt, _ = ReadInt(r, 4)
@@ -150,7 +156,7 @@ func (m *mp4) readSTTS(r io.Reader, trk *mp4trk) {
 func (m *mp4) readSTCO(r io.Reader, trk *mp4trk) {
 	ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- %d\n", cnt)
+	m.log("- %d", cnt)
 	trk.chunkOffs = make([]int64, cnt)
 	for i := 0; i < cnt; i++ {
 		j, _ := ReadInt(r, 4)
@@ -162,11 +168,11 @@ func (m *mp4) readSTSZ(r io.Reader, trk *mp4trk) {
 	ReadInt(r, 4)
 	sampsize, _ := ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- %d %d\n", sampsize, cnt)
+	m.log("- %d %d", sampsize, cnt)
 
 	trk.sampleSizes = make([]int, cnt)
 	sz := (cnt*32+4)>>3;
-	l.Printf("- buflen %d\n", sz)
+	m.log("- buflen %d", sz)
 	for i := 0; i < cnt && sz >= 4; i++ {
 		trk.sampleSizes[i], _ = ReadInt(r, 4)
 		sz -= 4
@@ -177,7 +183,7 @@ func (m *mp4) readSTSZ(r io.Reader, trk *mp4trk) {
 func (m *mp4) readSTSS(r io.Reader, trk *mp4trk) {
 	ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- keyframes %d\n", cnt)
+	m.log("- keyframes %d", cnt)
 	trk.keyFrames = make([]int, cnt)
 	for i := 0; i < cnt; i++ {
 		trk.keyFrames[i], _ = ReadInt(r, 4)
@@ -187,7 +193,7 @@ func (m *mp4) readSTSS(r io.Reader, trk *mp4trk) {
 func (m *mp4) readCTTS(r io.Reader) {
 	ReadInt(r, 4)
 	cnt, _ := ReadInt(r, 4)
-	l.Printf("- %d\n", cnt)
+	m.log("- %d", cnt)
 }
 
 func (m *mp4) readSTSC(r io.Reader, trk *mp4trk) {
@@ -200,7 +206,7 @@ func (m *mp4) readSTSC(r io.Reader, trk *mp4trk) {
 		stsc[i].id , _ = ReadInt(r, 4)
 	}
 	trk.stsc = stsc
-	l.Printf("- cnt %v\n", len(stsc))
+	m.log("- cnt %v", len(stsc))
 }
 
 func (m *mp4) readMDHD(r io.Reader, trk *mp4trk) {
@@ -222,16 +228,12 @@ func (m *mp4) readMDHD(r io.Reader, trk *mp4trk) {
 
 func (m *mp4) readAVCC(r io.Reader, trk *mp4trk) {
 	trk.extra = ReadAll(r)
-	l.Printf("- %v\n", trk.extra[:4])
+	m.log("- %v", trk.extra[:4])
 }
 
 func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 	for {
-		prestr := ""
-		for i := 0; i < indent; i++ {
-			prestr += " "
-		}
-		l.SetPrefix(prestr)
+		m.logindent = indent
 
 		size, err := ReadInt(r, 4)
 		if err != nil {
@@ -242,7 +244,7 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 			size2, _ := ReadInt(r, 8)
 			size = size2 - 8
 		}
-		l.Printf("%s %d\n", typestr, size)
+		m.log("%s %d", typestr, size)
 
 		if typestr == "mdat" {
 			r.Seek(int64(size-8), 1)
@@ -286,11 +288,11 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 }
 
 func (m *mp4) parseTrk(trk *mp4trk) {
-	l.Printf("trk %s\n", trk.cc4)
-	l.Printf(" stsc cnt %d\n", len(trk.stsc))
-	l.Printf(" chunk cnt %d\n", len(trk.chunkOffs))
-	l.Printf(" sample cnt %d\n", len(trk.sampleSizes))
-	l.Printf(" time scale %v\n", trk.timeScale)
+	m.log("trk %s", trk.cc4)
+	m.log(" stsc cnt %d", len(trk.stsc))
+	m.log(" chunk cnt %d", len(trk.chunkOffs))
+	m.log(" sample cnt %d", len(trk.sampleSizes))
+	m.log(" time scale %v", trk.timeScale)
 
 	trk.index = make([]mp4index, len(trk.sampleSizes))
 
@@ -311,9 +313,9 @@ func (m *mp4) parseTrk(trk *mp4trk) {
 			trk.index[i] = mp4index{
 				ts:ts, off:off, size:size, pos:pos,
 			}
-			if true {
-				l.Printf(
-						" #%d ts %v off %v size %v chunk #%d/%d,%d/%d stsc %d/%d stts %v pos %v %v\n",
+			if false {
+				m.log(
+						" #%d ts %v off %v size %v chunk #%d/%d,%d/%d stsc %d/%d stts %v pos %v %v",
 						i, ts, off, size,
 						ki, len(trk.chunkOffs), j, trk.stsc[ci].cnt,
 						ci, len(trk.stsc),
@@ -336,7 +338,7 @@ func (m *mp4) parseTrk(trk *mp4trk) {
 			}
 		}
 	}
-	l.Printf(" si %d len %d\n", si, len(trk.stts))
+	m.log(" si %d len %d", si, len(trk.stts))
 
 	if trk.cc4 == "avc1" {
 		trk.codec = av.H264

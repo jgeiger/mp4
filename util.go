@@ -6,19 +6,33 @@ import (
 	"log"
 	"os"
 	"bytes"
+	"fmt"
+	"strings"
 )
 
-type dummyWriter struct {
-}
+type logger int
 
-func (m *dummyWriter) Write(p []byte) (n int, err error) {
-	return 0, nil
+func (l logger) Printf(format string, v ...interface{}) {
+	str := fmt.Sprintf(format, v...)
+	switch {
+	case strings.HasPrefix(str, "parse") && l >= 1,
+			 strings.HasPrefix(str, "read") && l >= 1:
+		l2.Println(str)
+	default:
+		if l >= 1 {
+			l2.Println(str)
+		}
+	}
 }
 
 var (
-	dummyW = &dummyWriter{}
-	l = log.New(dummyW, "mp4: ", 0)
+	l = logger(0)
+	l2 *log.Logger
 )
+
+func init() {
+	l2 = log.New(os.Stderr, "", 0)
+}
 
 type mp4trk struct {
 	cc4 string
@@ -58,6 +72,7 @@ type mp4 struct {
 	rat *os.File
 	AACCfg []byte
 	PPS []byte
+	logindent int
 
 	mdatOff int64
 	w, w2 *os.File
@@ -118,9 +133,7 @@ func ReadString(r io.Reader, n int) (string, error) {
 }
 
 func LogLevel(i int) {
-	if (i > 0) {
-		l = log.New(os.Stderr, "mp4: ", 0)
-	}
+	l = logger(i)
 }
 
 func (m *mp4) Close() {

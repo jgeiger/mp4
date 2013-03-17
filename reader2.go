@@ -45,19 +45,19 @@ func testSearchIndex() {
 	}
 	for i := -4; i < 14; i++ {
 		pos := float32(i)+0.1
-		l.Printf("search(%f)\n", pos)
-		r := binSearch(a, pos)
-		l.Printf(" =%d\n", r)
+		//l.Printf("seek: search(%f)", pos)
+		binSearch(a, pos)
+		//l.Printf("seek: =%d", r)
 	}
 }
 
 func (m *mp4) SeekKey(pos float32) {
-	l.Printf("SeekKey %f\n", pos)
+	l.Printf("seek: %f", pos)
 	m.vtrk.i = searchIndex(pos, m.vtrk, true)
-	l.Printf(" V: %f\n", m.vtrk.index[m.vtrk.i].pos)
+	l.Printf("seek: V: %f", m.vtrk.index[m.vtrk.i].pos)
 	if m.atrk != nil {
 		m.atrk.i = searchIndex(pos, m.atrk, false)
-		l.Printf(" A: %f\n", m.atrk.index[m.atrk.i].pos)
+		l.Printf("seek: A: %f", m.atrk.index[m.atrk.i].pos)
 	}
 }
 
@@ -73,7 +73,7 @@ func (m *mp4) readTo(trks []*mp4trk, end float32) (ret []*av.Packet, pos float32
 			}
 		}
 		if mt == nil {
-			l.Printf("mt == nil\n")
+			//l.Printf("mt == nil")
 			break
 		}
 		pos = mt.index[mt.i].pos
@@ -92,9 +92,9 @@ func (m *mp4) readTo(trks []*mp4trk, end float32) (ret []*av.Packet, pos float32
 }
 
 func (m *mp4) ReadDur(dur float32) (ret []*av.Packet) {
-	l.Printf("ReadDur %f\n", dur)
+	l.Printf("read: dur %f", dur)
 	ret, m.Pos = m.readTo([]*mp4trk{m.vtrk, m.atrk}, m.Pos + dur)
-	l.Printf(" got %d packets\n", len(ret))
+	l.Printf("read: got %d packets", len(ret))
 	return
 }
 
