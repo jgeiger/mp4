@@ -36,16 +36,19 @@ func init() {
 
 type mp4trk struct {
 	cc4 string
-	keyFrames []int
-	sampleSizes []int
-	chunkOffs []int64
-	stts []mp4stts
-	stsc []mp4stsc
+	keyFrames, newKeyFrames []int
+	sampleSizes, newSampleSizes []int
+	chunkOffs, newChunkOffs []int64
+	stts, newStts []mp4stts
+	stsc, newStsc []mp4stsc
 	index []mp4index
 	extra []byte
+	offStart int64
+	mdatSize int
 	timeScale int
 	dur int
 	i int
+	newIdx int
 	codec, idx int
 }
 
@@ -64,7 +67,15 @@ type mp4stts struct {
 	cnt, dur int
 }
 
+type mp4atom struct {
+	tag string
+	data []byte
+	trk *mp4trk
+	childs []*mp4atom
+}
+
 type mp4 struct {
+	atom *mp4atom
 	trk []*mp4trk
 	vtrk, atrk *mp4trk
 	Dur, Pos float32
@@ -73,6 +84,9 @@ type mp4 struct {
 	AACCfg []byte
 	PPS []byte
 	logindent int
+
+	durts int
+	timeScale int
 
 	mdatOff int64
 	w, w2 *os.File

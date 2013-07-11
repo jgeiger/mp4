@@ -25,7 +25,7 @@ func (m *mp4) readAVC1(r io.ReadSeeker, indent int, trk *mp4trk) {
 	ReadInt(r, 16)
 	w, _ := ReadInt(r, 2)
 	h, _ := ReadInt(r, 2)
-	l.Printf("parse: - video %dx%d", w, h)
+	m.log("- video %dx%d", w, h)
 	m.W = w
 	m.H = h
 	ReadInt(r, 14)
@@ -37,7 +37,7 @@ func (m *mp4) readAVC1(r io.ReadSeeker, indent int, trk *mp4trk) {
 		panic("unsupported depth < 8")
 	}
 	m.log("- depth,tid %v %v", depth, tid)
-	m.readAtom(r, indent, trk)
+	m.readAtom(r, indent, trk, &mp4atom{})
 }
 
 func (m *mp4) readMP4A(r io.ReadSeeker, indent int, trk *mp4trk) {
@@ -53,7 +53,7 @@ func (m *mp4) readMP4A(r io.ReadSeeker, indent int, trk *mp4trk) {
 	sr, _ := ReadUint(r, 4) // sample rate
 	sr >>= 16
 	m.log("- ver %v channels %d samplerate %d", ver, cr, sr)
-	m.readAtom(r, indent, trk)
+	m.readAtom(r, indent, trk, &mp4atom{})
 }
 
 func readDescrLen(r io.Reader) (ln int) {
@@ -231,7 +231,8 @@ func (m *mp4) readAVCC(r io.Reader, trk *mp4trk) {
 	m.log("- %v", trk.extra[:4])
 }
 
-func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
+func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk, atom *mp4atom) {
+
 	for {
 		m.logindent = indent
 
@@ -246,6 +247,10 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 		}
 		m.log("%s %d", typestr, size)
 
+		curatom := &mp4atom{}
+		curatom.tag = typestr
+		curatom.trk = trk
+
 		if typestr == "mdat" {
 			r.Seek(int64(size-8), 1)
 			continue
@@ -255,14 +260,14 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 		br := bytes.NewReader(b)
 
 		switch typestr {
-		case "ftyp" :
+		case "ftyp":
 			m.readFTYP(br)
 		case "moov", "mdia", "minf", "stbl":
-			m.readAtom(br, indent + 1, trk)
+			m.readAtom(br, indent + 1, trk, curatom)
 		case "trak":
 			newtrk := &mp4trk{}
 			m.trk = append(m.trk, newtrk)
-			m.readAtom(br, indent + 1, newtrk)
+			m.readAtom(br, indent + 1, newtrk, curatom)
 		case "stsd":
 			m.readSTSD(br, indent, trk)
 		case "stts":
@@ -284,15 +289,36 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk) {
 		case "esds":
 			m.readESDS(br, trk)
 		}
+
+		atom.childs = append(atom.childs, curatom)
+		if len(curatom.childs) == 0 {
+			curatom.data = b
+		}
 	}
+}
+
+func (m *mp4) sumStsc(stsc []mp4stsc, chunkOffs []int64) int {
+	cnt := 0
+	for i, s := range stsc {
+		var j int
+		if i == len(stsc)-1 {
+			j = len(chunkOffs)-stsc[i].first+1
+		} else {
+			j = stsc[i+1].first - stsc[i].first
+		}
+//		m.log(" stsc: #%d %d x %d", i, s.cnt, j)
+		cnt += s.cnt*j
+	}
+	return cnt
 }
 
 func (m *mp4) parseTrk(trk *mp4trk) {
 	m.log("trk %s", trk.cc4)
-	m.log(" stsc cnt %d", len(trk.stsc))
+	m.log(" keyframes cnt %d", len(trk.keyFrames))
 	m.log(" chunk cnt %d", len(trk.chunkOffs))
 	m.log(" sample cnt %d", len(trk.sampleSizes))
 	m.log(" time scale %v", trk.timeScale)
+	m.log(" stsc %v", trk.stsc)
 
 	trk.index = make([]mp4index, len(trk.sampleSizes))
 
@@ -315,10 +341,11 @@ func (m *mp4) parseTrk(trk *mp4trk) {
 			}
 			if false {
 				m.log(
-						" #%d ts %v off %v size %v chunk #%d/%d,%d/%d stsc %d/%d stts %v pos %v %v",
+						" #%d ts %v off %v size %v chunk off %d #%d/%d,%d/%d stsc %d/%d %d,%d stts %v pos %v %v",
 						i, ts, off, size,
-						ki, len(trk.chunkOffs), j, trk.stsc[ci].cnt,
-						ci, len(trk.stsc),
+						trk.chunkOffs[ki], ki+1, len(trk.chunkOffs), j+1, trk.stsc[ci].cnt,
+						ci+1, len(trk.stsc),
+						trk.stsc[ci].first, trk.stsc[ci].cnt,
 						trk.stts[si], pos, trk.timeScale,
 					)
 			}

@@ -250,22 +250,22 @@ func (m *mp4) writeSTSD(w io.Writer, t *mp4trk) {
 	})
 }
 
-func (m *mp4) writeSTTS(w io.Writer, t *mp4trk) {
+func (m *mp4) writeSTTS(w io.Writer, stts []mp4stts) {
 	WriteTag(w, "stts", func (w io.Writer) {
 		WriteInt(w, 0, 4) // version & flags
-		WriteInt(w, len(t.stts), 4) // entry count
-		for _, s := range t.stts {
+		WriteInt(w, len(stts), 4) // entry count
+		for _, s := range stts {
 			WriteInt(w, s.cnt, 4)
 			WriteInt(w, s.dur, 4)
 		}
 	})
 }
 
-func (m *mp4) writeSTSC(w io.Writer, t *mp4trk) {
+func (m *mp4) writeSTSC(w io.Writer, stsc []mp4stsc) {
 	WriteTag(w, "stsc", func (w io.Writer) {
 		WriteInt(w, 0, 4) // version & flags
-		WriteInt(w, len(t.stsc), 4) // entry count
-		for _, s := range t.stsc {
+		WriteInt(w, len(stsc), 4) // entry count
+		for _, s := range stsc {
 			WriteInt(w, s.first, 4)
 			WriteInt(w, s.cnt, 4)
 			WriteInt(w, s.id, 4)
@@ -273,34 +273,44 @@ func (m *mp4) writeSTSC(w io.Writer, t *mp4trk) {
 	})
 }
 
-func (m *mp4) writeSTSZ(w io.Writer, t *mp4trk) {
+func (m *mp4) writeSTSZ(w io.Writer, sampleSizes []int) {
 	WriteTag(w, "stsz", func (w io.Writer) {
 		WriteInt(w, 0, 4) // version & flags
 		WriteInt(w, 0, 4) // sample size
-		WriteInt(w, len(t.sampleSizes), 4) // sample count
-		for _, s := range t.sampleSizes {
+		WriteInt(w, len(sampleSizes), 4) // sample count
+		for _, s := range sampleSizes {
 			WriteInt(w, s, 4)
 		}
 	})
 }
 
-func (m *mp4) writeSTCO(w io.Writer, t *mp4trk) {
-	l.Printf("  stco %d", t.codec)
+func (m *mp4) writeSTCO(w io.Writer, chunkOffs []int64) {
 	WriteTag(w, "stco", func (w io.Writer) {
 		WriteInt(w, 0, 4) // version & flags
-		WriteInt(w, len(t.chunkOffs), 4) // entry count
-		for _, s := range t.chunkOffs {
+		WriteInt(w, len(chunkOffs), 4) // entry count
+		for _, s := range chunkOffs {
 			WriteInt(w, int(s+m.mdatOff), 4)
+		}
+	})
+}
+
+func (m *mp4) writeSTSS(w io.Writer, keyFrames []int) {
+	WriteTag(w, "stss", func (w io.Writer) {
+		WriteInt(w, 0, 4)
+		WriteInt(w, len(keyFrames), 4)
+		for _, s := range keyFrames {
+			WriteInt(w, s, 4)
 		}
 	})
 }
 
 func (m *mp4) writeSTBL(w io.Writer, t *mp4trk) {
 	m.writeSTSD(w, t)
-	m.writeSTTS(w, t)
-	m.writeSTSC(w, t)
-	m.writeSTSZ(w, t)
-	m.writeSTCO(w, t)
+	m.writeSTTS(w, t.stts)
+	m.writeSTSS(w, t.keyFrames)
+	m.writeSTSC(w, t.stsc)
+	m.writeSTSZ(w, t.sampleSizes)
+	m.writeSTCO(w, t.chunkOffs)
 }
 
 func (m *mp4) writeMINF(w io.Writer, t *mp4trk) {
@@ -374,7 +384,6 @@ func (m *mp4) writeMOOV(w io.Writer) {
 		}
 	})
 }
-
 
 func (m *mp4) trkAdd(t *mp4trk, p *av.Packet) {
 	if len(t.extra) == 0 {
