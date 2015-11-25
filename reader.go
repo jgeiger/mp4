@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"bytes"
 	"strings"
-	"github.com/go-av/av"
+	"github.com/nareix/av"
 )
 
 func (m *mp4) log(format string, v... interface{}) {
@@ -42,8 +42,8 @@ func (m *mp4) readAVC1(r io.ReadSeeker, indent int, trk *mp4trk) {
 
 func (m *mp4) readMP4A(r io.ReadSeeker, indent int, trk *mp4trk) {
 	ver, _ := ReadInt(r, 2) // version
-	if ver != 0 {
-		panic("stsd audio ver != 0")
+	if ver != 0 && ver != 1 {
+		panic(fmt.Sprintf("mp4a ver=%d not supported. it must be 0,1", ver))
 	}
 	ReadInt(r, 2) // reversion
 	ReadInt(r, 4) // vendor
@@ -53,6 +53,9 @@ func (m *mp4) readMP4A(r io.ReadSeeker, indent int, trk *mp4trk) {
 	sr, _ := ReadUint(r, 4) // sample rate
 	sr >>= 16
 	m.log("- ver %v channels %d samplerate %d", ver, cr, sr)
+	if ver == 1 {
+		ReadInt(r, 4*4)
+	}
 	m.readAtom(r, indent, trk, &mp4atom{})
 }
 
@@ -114,6 +117,41 @@ func (m *mp4) readESDS(r io.ReadSeeker, trk *mp4trk) {
 		}
 	}
 	m.log("- tag %v", tag)
+}
+
+func (m *mp4) readTKHD(r io.Reader, indent int) {
+	// https://developer.apple.com/library/mac/documentation/QuickTime/QTFF/QTFFChap2/qtff2.html
+	ver, _ := ReadInt(r, 1)
+	m.log("- version %d", ver)
+	if ver != 0 {
+		return
+	}
+	flags, _ := ReadInt(r, 3)
+	m.log("- flags %x", flags)
+	ctime, _ := ReadInt(r, 4)
+	m.log("- ctime %d", ctime)
+	mtime, _ := ReadInt(r, 4)
+	m.log("- mtime %d", mtime)
+	id, _ := ReadInt(r, 4)
+	m.log("- id %d", id)
+	ReadInt(r, 4)
+	duration, _ := ReadInt(r, 4)
+	m.log("- duration %d", duration)
+	ReadInt(r, 8)
+	layer, _ := ReadInt(r, 2)
+	m.log("- layer %d", layer)
+	group, _ := ReadInt(r, 2)
+	m.log("- group %d", group)
+	volume, _ := ReadInt(r, 2)
+	m.log("- volume %d", volume)
+	ReadInt(r, 2)
+	for i := 0; i < 9; i++ {
+		v, _ := ReadInt(r, 4)
+		m.log("- matrix[%d] %x", i, v)
+	}
+	w, _ := ReadInt(r, 4)
+	h, _ := ReadInt(r, 4)
+	m.log("- w/h %dx%d", w>>16, h>>16)
 }
 
 func (m *mp4) readSTSD(r io.Reader, indent int, trk *mp4trk) {
@@ -240,6 +278,10 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk, atom *mp4atom) 
 		if err != nil {
 			break
 		}
+		if size == 0 {
+			continue
+		}
+
 		typestr, _ := ReadString(r, 4)
 		if size == 1 {
 			size2, _ := ReadInt(r, 8)
@@ -268,6 +310,21 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk, atom *mp4atom) 
 			newtrk := &mp4trk{}
 			m.trk = append(m.trk, newtrk)
 			m.readAtom(br, indent + 1, newtrk, curatom)
+
+		// Track Aperture Mode Dimensions Atom
+		// A container atom that stores information for video correction in the form of three required atoms. This atom is optionally included in the track atom. The type of the track aperture mode dimensions atom is ‘tapt’.
+		//case "tapt":
+
+		// Edit Atoms
+		// You use edit atoms to define the portions of the media that are to be used to build up a track for a movie. The edits themselves are contained in an edit list table, which consists of time offset and duration values for each segment. Edit atoms have an atom type value of 'edts'.
+		//case "edts":
+
+		// Handler Reference Atoms
+		// The handler reference atom specifies the media handler component that is to be used to interpret the media’s data. The handler reference atom has an atom type value of 'hdlr'.
+		//case "hdlr":
+
+		case "tkhd":
+			m.readTKHD(br, indent)
 		case "stsd":
 			m.readSTSD(br, indent, trk)
 		case "stts":
@@ -282,8 +339,12 @@ func (m *mp4) readAtom(r io.ReadSeeker, indent int, trk *mp4trk, atom *mp4atom) 
 			m.readCTTS(br)
 		case "stsc":
 			m.readSTSC(br, trk)
+
+		// Media Header Atoms
+		// The media header atom specifies the characteristics of a media, including time scale and duration. The media header atom has an atom type of 'mdhd'.
 		case "mdhd":
 			m.readMDHD(br, trk)
+
 		case "avcC":
 			m.readAVCC(br, trk)
 		case "esds":

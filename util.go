@@ -26,7 +26,7 @@ func (l logger) Printf(format string, v ...interface{}) {
 }
 
 var (
-	l = logger(0)
+	l = logger(1)
 	l2 *log.Logger
 )
 

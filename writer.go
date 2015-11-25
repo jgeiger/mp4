@@ -2,7 +2,7 @@
 package mp4
 
 import (
-	"github.com/go-av/av"
+	"github.com/nareix/av"
 	"os"
 	"io"
 	"fmt"
