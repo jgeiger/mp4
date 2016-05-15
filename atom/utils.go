@@ -1,4 +1,3 @@
-
 package atom
 
 func GetAVCDecoderConfRecordByTrack(track *Track) (record *AVCDecoderConfRecord) {
@@ -32,4 +31,3 @@ func GetMp4aDescByTrack(track *Track) (mp4a *Mp4aDesc) {
 	}
 	return
 }
-

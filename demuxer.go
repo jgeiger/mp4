@@ -1,19 +1,19 @@
-
 package mp4
 
 import (
-	"github.com/nareix/mp4/atom"
-	"github.com/nareix/mp4/isom"
 	"bytes"
 	"fmt"
 	"io"
+
+	"github.com/nareix/mp4/atom"
+	"github.com/nareix/mp4/isom"
 )
 
 type Demuxer struct {
-	R io.ReadSeeker
-	Tracks []*Track
+	R         io.ReadSeeker
+	Tracks    []*Track
 	TrackH264 *Track
-	TrackAAC *Track
+	TrackAAC  *Track
 	MovieAtom *atom.Movie
 }
 
@@ -55,10 +55,10 @@ func (self *Demuxer) ReadHeader() (err error) {
 	self.MovieAtom = moov
 
 	self.Tracks = []*Track{}
-	for _, atrack := range(moov.Tracks) {
+	for _, atrack := range moov.Tracks {
 		track := &Track{
 			TrackAtom: atrack,
-			r: self.R,
+			r:         self.R,
 		}
 		if atrack.Media != nil && atrack.Media.Info != nil && atrack.Media.Info.Sample != nil {
 			track.sample = atrack.Media.Info.Sample
@@ -94,11 +94,11 @@ func (self *Track) setSampleIndex(index int) (err error) {
 	start := 0
 	self.chunkGroupIndex = 0
 
-	for self.chunkIndex = range(self.sample.ChunkOffset.Entries) {
+	for self.chunkIndex = range self.sample.ChunkOffset.Entries {
 		n := self.sample.SampleToChunk.Entries[self.chunkGroupIndex].SamplesPerChunk
 		if index >= start && index < start+n {
 			found = true
-			self.sampleIndexInChunk = index-start
+			self.sampleIndexInChunk = index - start
 			break
 		}
 		start += n
@@ -113,14 +113,14 @@ func (self *Track) setSampleIndex(index int) (err error) {
 	}
 
 	if self.sample.SampleSize.SampleSize != 0 {
-		self.sampleOffsetInChunk = int64(self.sampleIndexInChunk*self.sample.SampleSize.SampleSize)
+		self.sampleOffsetInChunk = int64(self.sampleIndexInChunk * self.sample.SampleSize.SampleSize)
 	} else {
 		if index >= len(self.sample.SampleSize.Entries) {
 			err = io.EOF
 			return
 		}
 		self.sampleOffsetInChunk = int64(0)
-		for i := index-self.sampleIndexInChunk; i < index; i++ {
+		for i := index - self.sampleIndexInChunk; i < index; i++ {
 			self.sampleOffsetInChunk += int64(self.sample.SampleSize.Entries[i])
 		}
 	}
@@ -133,12 +133,12 @@ func (self *Track) setSampleIndex(index int) (err error) {
 		entry := self.sample.TimeToSample.Entries[self.sttsEntryIndex]
 		n := entry.Count
 		if index >= start && index < start+n {
-			self.sampleIndexInSttsEntry = index-start
-			self.dts += int64((index-start)*entry.Duration)
+			self.sampleIndexInSttsEntry = index - start
+			self.dts += int64((index - start) * entry.Duration)
 			break
 		}
 		start += n
-		self.dts += int64(n*entry.Duration)
+		self.dts += int64(n * entry.Duration)
 		self.sttsEntryIndex++
 	}
 	if !found {
@@ -153,7 +153,7 @@ func (self *Track) setSampleIndex(index int) (err error) {
 		for self.cttsEntryIndex < len(self.sample.CompositionOffset.Entries) {
 			n := self.sample.CompositionOffset.Entries[self.cttsEntryIndex].Count
 			if index >= start && index < start+n {
-				self.sampleIndexInCttsEntry = index-start
+				self.sampleIndexInCttsEntry = index - start
 				break
 			}
 			start += n
@@ -256,7 +256,7 @@ func (self *Track) SampleCount() int {
 	if self.sample.SampleSize.SampleSize == 0 {
 		chunkGroupIndex := 0
 		count := 0
-		for chunkIndex := range(self.sample.ChunkOffset.Entries) {
+		for chunkIndex := range self.sample.ChunkOffset.Entries {
 			n := self.sample.SampleToChunk.Entries[chunkGroupIndex].SamplesPerChunk
 			count += n
 			if chunkGroupIndex+1 < len(self.sample.SampleToChunk.Entries) &&
@@ -284,7 +284,7 @@ func (self *Track) ReadSample() (pts int64, dts int64, isKeyFrame bool, data []b
 		sampleSize = self.sample.SampleSize.Entries[self.sampleIndex]
 	}
 
-	sampleOffset := int64(chunkOffset)+self.sampleOffsetInChunk
+	sampleOffset := int64(chunkOffset) + self.sampleOffsetInChunk
 	if _, err = self.r.Seek(int64(sampleOffset), 0); err != nil {
 		return
 	}
@@ -303,7 +303,7 @@ func (self *Track) ReadSample() (pts int64, dts int64, isKeyFrame bool, data []b
 	//println("pts/dts", self.ptsEntryIndex, self.dtsEntryIndex)
 	dts = self.dts
 	if self.sample.CompositionOffset != nil && len(self.sample.CompositionOffset.Entries) > 0 {
-		pts = self.dts+int64(self.sample.CompositionOffset.Entries[self.cttsEntryIndex].Offset)
+		pts = self.dts + int64(self.sample.CompositionOffset.Entries[self.cttsEntryIndex].Offset)
 	} else {
 		pts = dts
 	}
@@ -314,10 +314,10 @@ func (self *Track) ReadSample() (pts int64, dts int64, isKeyFrame bool, data []b
 
 func (self *Track) Duration() float64 {
 	total := int64(0)
-	for _, entry := range(self.sample.TimeToSample.Entries) {
-		total += int64(entry.Duration*entry.Count)
+	for _, entry := range self.sample.TimeToSample.Entries {
+		total += int64(entry.Duration * entry.Count)
 	}
-	return float64(total)/float64(self.TrackAtom.Media.Header.TimeScale)
+	return float64(total) / float64(self.TrackAtom.Media.Header.TimeScale)
 }
 
 func (self *Track) CurTime() float64 {
@@ -350,11 +350,11 @@ func (self *Track) TimeToSampleIndex(time float64) int {
 	startIndex := 0
 	endIndex := 0
 	found := false
-	for _, entry := range(self.sample.TimeToSample.Entries) {
-		endTs = startTs+int64(entry.Count*entry.Duration)
-		endIndex = startIndex+entry.Count
+	for _, entry := range self.sample.TimeToSample.Entries {
+		endTs = startTs + int64(entry.Count*entry.Duration)
+		endIndex = startIndex + entry.Count
 		if targetTs >= startTs && targetTs < endTs {
-			targetIndex = startIndex+int((targetTs-startTs)/int64(entry.Duration))
+			targetIndex = startIndex + int((targetTs-startTs)/int64(entry.Duration))
 			found = true
 		}
 		startTs = endTs
@@ -364,15 +364,15 @@ func (self *Track) TimeToSampleIndex(time float64) int {
 		if targetTs < 0 {
 			targetIndex = 0
 		} else {
-			targetIndex = endIndex-1
+			targetIndex = endIndex - 1
 		}
 	}
 
 	if self.sample.SyncSample != nil {
 		entries := self.sample.SyncSample.Entries
-		for i := len(entries)-1; i >= 0; i-- {
+		for i := len(entries) - 1; i >= 0; i-- {
 			if entries[i]-1 < targetIndex {
-				targetIndex = entries[i]-1
+				targetIndex = entries[i] - 1
 				break
 			}
 		}
@@ -382,11 +382,11 @@ func (self *Track) TimeToSampleIndex(time float64) int {
 }
 
 func (self *Track) TimeToTs(time float64) int64 {
-	return int64(time*float64(self.TrackAtom.Media.Header.TimeScale))
+	return int64(time * float64(self.TrackAtom.Media.Header.TimeScale))
 }
 
 func (self *Track) TsToTime(ts int64) float64 {
-	return float64(ts)/float64(self.TrackAtom.Media.Header.TimeScale)
+	return float64(ts) / float64(self.TrackAtom.Media.Header.TimeScale)
 }
 
 func (self *Track) TimeScale() int64 {
@@ -400,4 +400,3 @@ func (self *Track) GetH264PPSAndSPS() (pps, sps []byte) {
 func (self *Track) GetMPEG4AudioConfig() isom.MPEG4AudioConfig {
 	return self.mpeg4AudioConfig
 }
-

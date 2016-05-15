@@ -1,47 +1,46 @@
-
 package mp4
 
 import (
+	"io"
+
 	"github.com/nareix/mp4/atom"
 	"github.com/nareix/mp4/isom"
-	"io"
 )
 
 const (
 	H264 = 1
-	AAC = 2
+	AAC  = 2
 )
 
 type Track struct {
-	Type int
+	Type      int
 	TrackAtom *atom.Track
-	r io.ReadSeeker
+	r         io.ReadSeeker
 
 	sps []byte
 	pps []byte
 
 	mpeg4AudioConfig isom.MPEG4AudioConfig
 
-	sample *atom.SampleTable
+	sample      *atom.SampleTable
 	sampleIndex int
 
 	sampleOffsetInChunk int64
-	syncSampleIndex int
+	syncSampleIndex     int
 
-	dts int64
-	sttsEntryIndex int
+	dts                    int64
+	sttsEntryIndex         int
 	sampleIndexInSttsEntry int
 
-	cttsEntryIndex int
+	cttsEntryIndex         int
 	sampleIndexInCttsEntry int
 
-	chunkGroupIndex int
-	chunkIndex int
+	chunkGroupIndex    int
+	chunkIndex         int
 	sampleIndexInChunk int
 
 	sttsEntry *atom.TimeToSampleEntry
 	cttsEntry *atom.CompositionOffsetEntry
-	muxer *Muxer
-	lastDts int64
+	muxer     *Muxer
+	lastDts   int64
 }
-

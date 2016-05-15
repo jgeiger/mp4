@@ -1,11 +1,11 @@
-
 package main
 
 import (
-	"github.com/nareix/mp4"
-	"os"
-	"fmt"
 	"encoding/hex"
+	"fmt"
+	"os"
+
+	"github.com/nareix/mp4"
 )
 
 func DemuxExample() {
@@ -86,4 +86,3 @@ func main() {
 	//DemuxExample()
 	MuxExample()
 }
-
