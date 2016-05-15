@@ -64,8 +64,7 @@ func MuxExample() {
 
 	muxer := &mp4.Muxer{W: outfile}
 	muxer.AddH264Track()
-	muxer.TrackH264.SetH264PPS(demuxer.TrackH264.GetH264PPS())
-	muxer.TrackH264.SetH264SPS(demuxer.TrackH264.GetH264SPS())
+	muxer.TrackH264.SetH264PPSAndSPS(demuxer.TrackH264.GetH264PPSAndSPS())
 	muxer.TrackH264.SetTimeScale(demuxer.TrackH264.TimeScale())
 
 	muxer.WriteHeader()
