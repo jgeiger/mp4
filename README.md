@@ -33,6 +33,6 @@ for more see Atom API Docs
 
 # Documentation
 
-[API Docs](https://godoc.org/github.com/nareix/mp4)
+[API Docs](https://godoc.org/github.com/mbeacom/mp4)
 
-[Atom API Docs](https://godoc.org/github.com/nareix/mp4/atom)
+[Atom API Docs](https://godoc.org/github.com/mbeacom/mp4/atom)
